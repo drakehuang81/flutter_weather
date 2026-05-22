@@ -4,9 +4,9 @@ import '../../domain/weather_forecast/weather_forecast.dart';
 import '../../domain/weather_forecast/weather_forecast_repository.dart';
 import '../result.dart';
 
-/// Use Case：依使用者輸入字串取得某城市的 36 小時預報。
+/// Use Case：依使用者輸入字串向後端查詢該城市的 36 小時預報。
 ///
-/// 流程：
+/// 每次呼叫都會打一次 API（無 cache）：
 ///   1. 將 raw input 轉成 [CityName]（不合法 → `Err(InvalidCityNameError)`）
 ///   2. 呼叫 [WeatherForecastRepository.fetchByCity]
 ///   3. 任何 [DomainFailure] 包成 `Err`；成功包成 `Ok`

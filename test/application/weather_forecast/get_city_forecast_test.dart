@@ -7,7 +7,6 @@ import 'package:flutter_weather/domain/weather_forecast/forecast_period.dart';
 import 'package:flutter_weather/domain/weather_forecast/weather_forecast.dart';
 import 'package:flutter_weather/domain/weather_forecast/weather_forecast_repository.dart';
 
-/// 直接回傳預設 [WeatherForecast] 的 fake repository。
 class _StubRepo implements WeatherForecastRepository {
   _StubRepo(this.forecast);
   final WeatherForecast forecast;
@@ -16,7 +15,6 @@ class _StubRepo implements WeatherForecastRepository {
   Future<WeatherForecast> fetchByCity(CityName city) async => forecast;
 }
 
-/// 依指定 Failure 拋例外的 fake repository。
 class _ThrowingRepo implements WeatherForecastRepository {
   _ThrowingRepo(this.failure);
   final DomainFailure failure;
@@ -25,7 +23,7 @@ class _ThrowingRepo implements WeatherForecastRepository {
   Future<WeatherForecast> fetchByCity(CityName city) async => throw failure;
 }
 
-WeatherForecast _sampleForecast(CityName city) => WeatherForecast(
+WeatherForecast _stub(CityName city) => WeatherForecast(
       city: city,
       fetchedAt: DateTime(2026, 5, 22, 11),
       periods: [
@@ -44,24 +42,22 @@ void main() {
   group('GetCityForecast', () {
     test('合法輸入 + repo 成功 → Ok(forecast)', () async {
       final city = CityName('臺北市');
-      final expected = _sampleForecast(city);
+      final expected = _stub(city);
       final useCase = GetCityForecast(_StubRepo(expected));
 
-      final result = await useCase('  臺北市  '); // 含空白，CityName 會 trim
+      final result = await useCase('  臺北市  ');
 
-      expect(result, isA<Ok<WeatherForecast, DomainFailure>>());
       expect((result as Ok).value, expected);
     });
 
     test('空字串輸入 → Err(InvalidCityNameError)', () async {
-      final useCase = GetCityForecast(_StubRepo(_sampleForecast(CityName('x'))));
+      final useCase = GetCityForecast(_StubRepo(_stub(CityName('x'))));
       final result = await useCase('   ');
-      expect(result, isA<Err<WeatherForecast, DomainFailure>>());
       expect((result as Err).failure, isA<InvalidCityNameError>());
     });
 
-    test('超長字串輸入 → Err(InvalidCityNameError)', () async {
-      final useCase = GetCityForecast(_StubRepo(_sampleForecast(CityName('x'))));
+    test('超長輸入 → Err(InvalidCityNameError)', () async {
+      final useCase = GetCityForecast(_StubRepo(_stub(CityName('x'))));
       final result = await useCase('A' * 50);
       expect((result as Err).failure, isA<InvalidCityNameError>());
     });
@@ -73,8 +69,7 @@ void main() {
       expect((result as Err).failure, isA<CityNotFoundError>());
     });
 
-    test('repo 拋 NetworkUnavailableError → Err(NetworkUnavailableError)',
-        () async {
+    test('repo 拋 NetworkUnavailableError → Err', () async {
       final useCase =
           GetCityForecast(_ThrowingRepo(const NetworkUnavailableError()));
       final result = await useCase('臺北市');
@@ -90,10 +85,9 @@ void main() {
       expect(failure.statusCode, 401);
     });
 
-    test('repo 拋 MalformedForecastDataError → Err(MalformedForecastDataError)',
-        () async {
+    test('repo 拋 MalformedForecastDataError → Err', () async {
       final useCase = GetCityForecast(
-        _ThrowingRepo(const MalformedForecastDataError('bad shape')),
+        _ThrowingRepo(const MalformedForecastDataError('bad')),
       );
       final result = await useCase('臺北市');
       expect((result as Err).failure, isA<MalformedForecastDataError>());
