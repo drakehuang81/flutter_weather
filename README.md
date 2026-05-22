@@ -59,6 +59,17 @@ fvm flutter pub get
 fvm flutter doctor
 ```
 
+> **Splash & native assets** — All native launch-screen files
+> (`android/app/src/main/res/drawable*/`, `ios/Runner/Assets.xcassets/LaunchBackground.imageset/`,
+> updated `LaunchScreen.storyboard` / `styles.xml` etc.) are pre-generated and
+> committed. You do **not** need to run `flutter_native_splash:create` after
+> cloning — only re-run it if you change the colour in `pubspec.yaml`.
+> See [Splash & launch flow](#splash--launch-flow).
+
+> **iOS first-time** — `ios/Podfile` is committed. The first
+> `fvm flutter run -d ios` will trigger `pod install` automatically;
+> make sure CocoaPods is installed (`fvm flutter doctor` reports it).
+
 ## Configuration
 
 The app calls the CWA F-C0032-001 forecast API, which requires a personal token.
@@ -267,3 +278,17 @@ This codebase was developed with assistance from **Claude Code (Anthropic)** —
 scaffolding, network layer, use cases, state holder, glass UI, and
 documentation drafts. All output is human-reviewed, edited, and tested
 before commit.
+
+### Tooling used
+
+- **MCP / Skills / SubAgents**
+  - [`ui-ux-pro-max`](https://github.com/) — UI/UX design intelligence (style系統、配色、字體配對) 用於 glass UI 與配色決策
+  - [`awesome-claude-code-subagents`](https://github.com/VoltAgent/awesome-claude-code-subagents) by **VoltAgent** — 領域專用 subagents（此專案使用 `flutter-expert`）
+  - [`context7`](https://github.com/upstash/context7) — 即時抓取 riverpod / dio / Flutter 等套件的最新官方文件，避免訓練資料過期
+  - **superpowers** — TDD、systematic-debugging、writing-plans 等工程紀律 skills
+
+### Workflow
+
+採 **SDD (Spec-Driven Development)**：先把 需求的PDF 與 `spec/design.md` 對齊，再產出 plan → 寫測試 → 實作 → review。
+
+實際執行時開 **2 個 Claude Code session 並行**（一個跑 domain/infra，一個跑 presentation/UI），因為本專案範圍較小；日常專案通常會開 3–5 個 session 並行，主 session 只做整合與決策。
