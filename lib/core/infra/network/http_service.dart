@@ -1,0 +1,203 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import '../../utils/log.dart';
+import 'api_exception.dart';
+import 'api_request.dart';
+import 'http_method.dart';
+
+/// HTTP 服務
+///
+/// 負責執行 API 請求，基於抽象的 [ApiRequest] 介面。
+/// 使用 Dio 套件，支援請求取消、攔截器等進階功能。
+class HttpService {
+  final Dio _dio;
+
+  HttpService({Dio? dio, Duration defaultTimeout = const Duration(seconds: 30)})
+    : _dio = dio ?? Dio() {
+    // 設定預設配置
+    _dio.options = BaseOptions(
+      connectTimeout: defaultTimeout,
+      receiveTimeout: defaultTimeout,
+      sendTimeout: defaultTimeout,
+    );
+
+    // 添加 Log 攔截器（僅在 Debug 模式）
+    if (kDebugMode) {
+      _dio.interceptors.add(_LogInterceptor());
+    }
+  }
+
+  /// 執行 API 請求
+  ///
+  /// [request] API 請求物件，包含所有請求參數
+  /// [cancelToken] 可選的取消令牌，用於取消請求
+  /// 返回經過 [ApiRequest.parseResponse] 解析後的結果
+  Future<T> execute<T>(
+    ApiRequest<T> request, {
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+  }) async {
+    try {
+      final response = await _sendRequest(
+        request,
+        cancelToken,
+        onSendProgress: onSendProgress,
+      );
+      return request.parseResponse(response.data);
+    } on DioException catch (e) {
+      throw _handleDioException(e);
+    } catch (e, stackTrace) {
+      Log.e('HttpService: Unexpected error', e, stackTrace);
+      throw ApiException('請求失敗: $e', stackTrace: stackTrace);
+    }
+  }
+
+  /// 發送 HTTP 請求
+  Future<Response> _sendRequest(
+    ApiRequest request,
+    CancelToken? cancelToken, {
+    ProgressCallback? onSendProgress,
+  }) async {
+    final options = Options(
+      method: request.method.value,
+      headers: request.headers,
+      receiveTimeout: request.timeout ?? _dio.options.receiveTimeout,
+      sendTimeout: request.timeout ?? _dio.options.sendTimeout,
+    );
+
+    return await _dio.request(
+      request.fullUrl,
+      queryParameters: request.queryParameters,
+      data: request.body,
+      options: options,
+      cancelToken: cancelToken,
+      onSendProgress: onSendProgress,
+    );
+  }
+
+  /// 處理 Dio 異常
+  ApiException _handleDioException(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return ApiException(
+          '請求超時',
+          statusCode: 408,
+          stackTrace: e.stackTrace,
+        );
+
+      case DioExceptionType.badResponse:
+        final statusCode = e.response?.statusCode;
+        return ApiException(
+          _getErrorMessage(statusCode, e.response?.data),
+          statusCode: statusCode,
+          response: e.response?.data,
+          stackTrace: e.stackTrace,
+        );
+
+      case DioExceptionType.cancel:
+        return ApiException('請求已取消', stackTrace: e.stackTrace);
+
+      case DioExceptionType.connectionError:
+        return ApiException('網路連線失敗，請檢查網路設定', stackTrace: e.stackTrace);
+
+      case DioExceptionType.badCertificate:
+        return ApiException('SSL 憑證驗證失敗', stackTrace: e.stackTrace);
+
+      case DioExceptionType.unknown:
+        // default:
+        return ApiException(
+          '未知錯誤: ${e.message}',
+          stackTrace: e.stackTrace,
+        );
+    }
+  }
+
+  /// 取得錯誤訊息
+  String _getErrorMessage(int? statusCode, dynamic responseData) {
+    // 先嘗試從回應資料中取得錯誤訊息
+    if (responseData != null) {
+      try {
+        if (responseData is Map) {
+          final message = responseData['message'] ?? responseData['error'];
+          if (message != null) return message.toString();
+        }
+      } catch (e) {
+        // 忽略解析錯誤
+      }
+    }
+
+    // 根據狀態碼返回預設訊息
+    switch (statusCode) {
+      case 400:
+        return '請求參數錯誤';
+      case 401:
+        return '未授權，請重新登入';
+      case 403:
+        return '無權限存取';
+      case 404:
+        return '資源不存在';
+      case 408:
+        return '請求超時';
+      case 429:
+        return '請求次數過多，請稍後再試';
+      case 500:
+        return '伺服器內部錯誤';
+      case 502:
+        return '伺服器網關錯誤';
+      case 503:
+        return '服務暫時無法使用';
+      default:
+        return '請求失敗 ($statusCode)';
+    }
+  }
+
+  /// 取得 Dio 實例（用於進階配置）
+  Dio get dio => _dio;
+
+  /// 關閉 HTTP 客戶端
+  void close({bool force = false}) {
+    _dio.close(force: force);
+  }
+}
+
+/// 自訂 Log 攔截器
+class _LogInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    Log.d('╔══════════════════════════════════════════════════════════════');
+    Log.d('║ ${options.method}: ${options.uri}');
+    if (options.queryParameters.isNotEmpty) {
+      Log.d('║ Query: ${options.queryParameters}');
+    }
+    if (options.data != null) {
+      Log.d('║ Body: ${options.data}');
+    }
+    if (options.headers.isNotEmpty) {
+      Log.d('║ Headers: ${options.headers}');
+    }
+    Log.d('╚══════════════════════════════════════════════════════════════');
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    Log.d(
+      '✓ Response: ${response.statusCode} - ${response.requestOptions.uri}',
+    );
+    Log.d('  Data: ${response.data}');
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    Log.e('HttpService: Error - ${err.type} - ${err.requestOptions.uri}', err);
+    Log.d('  Message: ${err.message}');
+    if (err.response != null) {
+      Log.d('  Status: ${err.response?.statusCode}');
+      Log.d('  Data: ${err.response?.data}');
+    }
+    handler.next(err);
+  }
+}
