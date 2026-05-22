@@ -48,6 +48,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_native_splash: ^2.4.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -90,3 +91,18 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# 啟動畫面（native，VM 起來前由 OS 直接畫）。
+# 純色背景 #3B5BA0 對齊 AppTheme.skyGradient 的最頂端 (skyTop)，
+# 銜接 Flutter SplashScreen 時 gradient 從同色起始，視覺上幾乎無感。
+# 編輯本段後執行：
+#   fvm dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#3B5BA0"
+  color_dark: "#3B5BA0"
+  android: true
+  ios: true
+  web: false
+  android_12:
+    color: "#3B5BA0"
+    color_dark: "#3B5BA0"
