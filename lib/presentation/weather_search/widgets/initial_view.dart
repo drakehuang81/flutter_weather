@@ -33,32 +33,30 @@ class _InitialViewState extends State<InitialView>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             AnimatedBuilder(
               animation: _ctrl,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(0, -6 + _ctrl.value * 12),
-                  child: child,
-                );
-              },
+              builder: (context, child) => Transform.translate(
+                offset: Offset(0, -6 + _ctrl.value * 12),
+                child: child,
+              ),
               child: Icon(
                 Icons.cloud_outlined,
-                size: 132,
+                size: 120,
                 color: Colors.white.withValues(alpha: 0.85),
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
             Text(
               '查詢天氣預報',
               style: theme.textTheme.headlineMedium,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               '輸入想查詢的城市名稱\n例如「臺北市」、「高雄市」',
               style: theme.textTheme.bodyMedium?.copyWith(

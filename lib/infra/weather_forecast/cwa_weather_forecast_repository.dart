@@ -31,28 +31,42 @@ class CwaWeatherForecastRepository implements WeatherForecastRepository {
   final DateTime Function() _clock;
 
   @override
-  Future<WeatherForecast> fetchByCity(CityName city) async {
+  Future<List<WeatherForecast>> fetchForecasts({CityName? city}) async {
     final dto = await _executeRequest(city);
     _ensureSuccess(dto);
 
-    if (dto.locations.isEmpty) {
-      throw CityNotFoundError(city.value);
+    final fetchedAt = _clock();
+
+    if (city != null) {
+      // 指定城市模式：找不到視為 CityNotFoundError
+      final location = dto.locations.firstWhere(
+        (loc) => loc.locationName == city.value,
+        orElse: () => throw CityNotFoundError(city.value),
+      );
+      return [
+        _mapper.toDomain(
+          city: city,
+          location: location,
+          fetchedAt: fetchedAt,
+        ),
+      ];
     }
-    final location = dto.locations.firstWhere(
-      (loc) => loc.locationName == city.value,
-      orElse: () => throw CityNotFoundError(city.value),
-    );
-    return _mapper.toDomain(
-      city: city,
-      location: location,
-      fetchedAt: _clock(),
-    );
+
+    // 瀏覽模式：回 CWA 所給的全部（即使為空）
+    return [
+      for (final loc in dto.locations)
+        _mapper.toDomain(
+          city: CityName(loc.locationName),
+          location: loc,
+          fetchedAt: fetchedAt,
+        ),
+    ];
   }
 
-  Future<CwaForecastResponseDto> _executeRequest(CityName city) async {
+  Future<CwaForecastResponseDto> _executeRequest(CityName? city) async {
     try {
       return await _httpService.execute(
-        GetCwaForecastRequest(cityName: city.value, apiToken: _apiToken),
+        GetCwaForecastRequest(cityName: city?.value, apiToken: _apiToken),
       );
     } on ApiException catch (e) {
       throw _translate(e);

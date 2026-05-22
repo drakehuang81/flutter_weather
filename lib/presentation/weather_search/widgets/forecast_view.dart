@@ -8,31 +8,54 @@ import '../../theme/weather_icon.dart';
 
 /// 狀態 ③：成功取得預報資料。
 ///
-/// 排版：
-/// - Hero 卡片：城市名 + 首段大溫度 + 天氣 icon
-/// - 後續時段：水平捲動的 glass 卡片
-/// - 底部 footer：更新時間
+/// - 0 筆：顯示空狀態提示
+/// - 1 筆：hero 大卡 + 後續時段 list
+/// - 多筆：vertical list of compact city card（瀏覽模式）
 class ForecastView extends StatelessWidget {
-  const ForecastView({super.key, required this.forecast});
+  const ForecastView({super.key, required this.forecasts});
+
+  final List<WeatherForecast> forecasts;
+
+  @override
+  Widget build(BuildContext context) {
+    if (forecasts.isEmpty) return const _EmptyState();
+    if (forecasts.length == 1) {
+      return _SingleForecastView(forecast: forecasts.first);
+    }
+    return _MultiForecastView(forecasts: forecasts);
+  }
+}
+
+// ── 0 筆 ─────────────────────────────────────────────────────
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: GlassCard(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          '目前沒有可顯示的預報',
+          style: theme.textTheme.titleMedium,
+        ),
+      ),
+    );
+  }
+}
+
+// ── 1 筆：hero + period cards ────────────────────────────────
+
+class _SingleForecastView extends StatelessWidget {
+  const _SingleForecastView({required this.forecast});
 
   final WeatherForecast forecast;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    if (forecast.periods.isEmpty) {
-      return Center(
-        child: GlassCard(
-          padding: const EdgeInsets.all(32),
-          child: Text(
-            '${forecast.city.value} 目前沒有可顯示的預報',
-            style: theme.textTheme.titleMedium,
-          ),
-        ),
-      );
-    }
-
     final first = forecast.periods.first;
     final rest = forecast.periods.skip(1).toList();
 
@@ -71,6 +94,103 @@ class ForecastView extends StatelessWidget {
     );
   }
 }
+
+// ── 多筆：vertical compact list ──────────────────────────────
+
+class _MultiForecastView extends StatelessWidget {
+  const _MultiForecastView({required this.forecasts});
+
+  final List<WeatherForecast> forecasts;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+          child: Text(
+            '全部縣市  ·  ${forecasts.length} 筆',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: AppTheme.textSecondary,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        ...forecasts.map((f) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _CitySummaryCard(forecast: f),
+            )),
+      ],
+    );
+  }
+}
+
+class _CitySummaryCard extends StatelessWidget {
+  const _CitySummaryCard({required this.forecast});
+
+  final WeatherForecast forecast;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final first = forecast.periods.first;
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  forecast.city.value,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  first.description,
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(Icons.water_drop_outlined,
+                        size: 14, color: AppTheme.textTertiary),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${first.precipitationProbability.value}%',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            weatherIconFor(first.description),
+            size: 40,
+            color: Colors.white.withValues(alpha: 0.92),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '${first.temperature.min}°/${first.temperature.max}°',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 共用元件（單筆畫面內部）──────────────────────────────────
 
 class _HeroCard extends StatelessWidget {
   const _HeroCard({required this.city, required this.period});

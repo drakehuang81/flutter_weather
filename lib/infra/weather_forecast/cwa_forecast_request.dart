@@ -4,14 +4,16 @@ import 'cwa_forecast_dto.dart';
 
 /// CWA「一般天氣預報-今明 36 小時天氣預報」(F-C0032-001) 取得請求。
 ///
-/// 每次搜尋對應一次呼叫，固定帶 `locationName` 查單一城市。
+/// [cityName] 可選：
+///   - 給定 → 帶 `locationName=...`，CWA 回 1 筆
+///   - 省略 → 不帶 `locationName`，CWA 回所有 22 縣市
 class GetCwaForecastRequest extends ApiRequest<CwaForecastResponseDto> {
   GetCwaForecastRequest({
-    required this.cityName,
+    this.cityName,
     required this.apiToken,
   });
 
-  final String cityName;
+  final String? cityName;
   final String apiToken;
 
   @override
@@ -26,7 +28,7 @@ class GetCwaForecastRequest extends ApiRequest<CwaForecastResponseDto> {
   @override
   Map<String, dynamic>? get queryParameters => {
         'Authorization': apiToken,
-        'locationName': cityName,
+        if (cityName != null) 'locationName': cityName as String,
         'format': 'JSON',
       };
 

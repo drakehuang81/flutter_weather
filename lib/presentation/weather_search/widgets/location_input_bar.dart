@@ -47,7 +47,7 @@ class _LocationInputBarState extends State<LocationInputBar> {
                 fontWeight: FontWeight.w500,
               ),
               decoration: InputDecoration(
-                hintText: '輸入城市名稱…',
+                hintText: '搜尋城市',
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   color: Colors.white.withValues(alpha: 0.85),

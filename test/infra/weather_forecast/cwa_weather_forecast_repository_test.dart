@@ -40,19 +40,20 @@ void main() {
         clock: () => clock,
       );
 
-  group('fetchByCity', () {
-    test('成功取得 WeatherForecast', () async {
+  group('fetchForecasts(city: ...)', () {
+    test('成功取得 1-element list', () async {
       final repo = buildRepo(_StubHttpService(taipeiSuccessJson));
-      final forecast = await repo.fetchByCity(city);
-      expect(forecast.city, city);
-      expect(forecast.periods, hasLength(3));
-      expect(forecast.fetchedAt, clock);
+      final list = await repo.fetchForecasts(city: city);
+      expect(list, hasLength(1));
+      expect(list.first.city, city);
+      expect(list.first.periods, hasLength(3));
+      expect(list.first.fetchedAt, clock);
     });
 
     test('success="false" → RemoteServiceError(200)', () async {
       final repo = buildRepo(_StubHttpService(authFailureJson));
       await expectLater(
-        repo.fetchByCity(city),
+        repo.fetchForecasts(city: city),
         throwsA(
           isA<RemoteServiceError>()
               .having((e) => e.statusCode, 'statusCode', 200),
@@ -63,7 +64,7 @@ void main() {
     test('location 為空 → CityNotFoundError', () async {
       final repo = buildRepo(_StubHttpService(emptyLocationsJson));
       await expectLater(
-        repo.fetchByCity(city),
+        repo.fetchForecasts(city: city),
         throwsA(isA<CityNotFoundError>()),
       );
     });
@@ -71,7 +72,7 @@ void main() {
     test('locationName 不匹配 → CityNotFoundError', () async {
       final repo = buildRepo(_StubHttpService(taipeiSuccessJson));
       await expectLater(
-        repo.fetchByCity(CityName('高雄市')),
+        repo.fetchForecasts(city: CityName('高雄市')),
         throwsA(isA<CityNotFoundError>()),
       );
     });
@@ -79,8 +80,32 @@ void main() {
     test('缺 records → MalformedForecastDataError', () async {
       final repo = buildRepo(_StubHttpService(malformedNoRecordsJson));
       await expectLater(
-        repo.fetchByCity(city),
+        repo.fetchForecasts(city: city),
         throwsA(isA<MalformedForecastDataError>()),
+      );
+    });
+  });
+
+  group('fetchForecasts() — 瀏覽模式', () {
+    test('成功回所有縣市', () async {
+      final repo = buildRepo(_StubHttpService(twoCitiesSuccessJson));
+      final list = await repo.fetchForecasts();
+      expect(list, hasLength(2));
+      expect(list.map((f) => f.city.value), containsAll(['臺北市', '高雄市']));
+      expect(list.every((f) => f.fetchedAt == clock), isTrue);
+    });
+
+    test('location 為空 → 空 list（不視為錯誤）', () async {
+      final repo = buildRepo(_StubHttpService(emptyLocationsJson));
+      final list = await repo.fetchForecasts();
+      expect(list, isEmpty);
+    });
+
+    test('success="false" → RemoteServiceError(200)', () async {
+      final repo = buildRepo(_StubHttpService(authFailureJson));
+      await expectLater(
+        repo.fetchForecasts(),
+        throwsA(isA<RemoteServiceError>()),
       );
     });
   });
@@ -89,7 +114,11 @@ void main() {
     test('isNetworkError → NetworkUnavailableError', () async {
       final repo = buildRepo(_ThrowingHttpService(ApiException('offline')));
       await expectLater(
-        repo.fetchByCity(city),
+        repo.fetchForecasts(city: city),
+        throwsA(isA<NetworkUnavailableError>()),
+      );
+      await expectLater(
+        repo.fetchForecasts(),
         throwsA(isA<NetworkUnavailableError>()),
       );
     });
@@ -99,7 +128,7 @@ void main() {
         _ThrowingHttpService(ApiException('500', statusCode: 500)),
       );
       await expectLater(
-        repo.fetchByCity(city),
+        repo.fetchForecasts(city: city),
         throwsA(
           isA<RemoteServiceError>()
               .having((e) => e.statusCode, 'statusCode', 500),

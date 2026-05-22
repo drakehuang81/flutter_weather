@@ -94,6 +94,37 @@ const String malformedNoRecordsJson = '''
 }
 ''';
 
+/// 兩個城市的成功回應，用於測試「瀏覽模式」（不帶 locationName）。
+const String twoCitiesSuccessJson = '''
+{
+  "success": "true",
+  "records": {
+    "location": [
+      {
+        "locationName": "臺北市",
+        "weatherElement": [
+          {"elementName":"Wx","time":[{"startTime":"2026-05-22 12:00:00","endTime":"2026-05-22 18:00:00","parameter":{"parameterName":"晴","parameterValue":"1"}}]},
+          {"elementName":"PoP","time":[{"startTime":"2026-05-22 12:00:00","endTime":"2026-05-22 18:00:00","parameter":{"parameterName":"10","parameterUnit":"百分比"}}]},
+          {"elementName":"MinT","time":[{"startTime":"2026-05-22 12:00:00","endTime":"2026-05-22 18:00:00","parameter":{"parameterName":"24","parameterUnit":"C"}}]},
+          {"elementName":"MaxT","time":[{"startTime":"2026-05-22 12:00:00","endTime":"2026-05-22 18:00:00","parameter":{"parameterName":"30","parameterUnit":"C"}}]},
+          {"elementName":"CI","time":[{"startTime":"2026-05-22 12:00:00","endTime":"2026-05-22 18:00:00","parameter":{"parameterName":"舒適"}}]}
+        ]
+      },
+      {
+        "locationName": "高雄市",
+        "weatherElement": [
+          {"elementName":"Wx","time":[{"startTime":"2026-05-22 12:00:00","endTime":"2026-05-22 18:00:00","parameter":{"parameterName":"多雲","parameterValue":"4"}}]},
+          {"elementName":"PoP","time":[{"startTime":"2026-05-22 12:00:00","endTime":"2026-05-22 18:00:00","parameter":{"parameterName":"30","parameterUnit":"百分比"}}]},
+          {"elementName":"MinT","time":[{"startTime":"2026-05-22 12:00:00","endTime":"2026-05-22 18:00:00","parameter":{"parameterName":"27","parameterUnit":"C"}}]},
+          {"elementName":"MaxT","time":[{"startTime":"2026-05-22 12:00:00","endTime":"2026-05-22 18:00:00","parameter":{"parameterName":"33","parameterUnit":"C"}}]},
+          {"elementName":"CI","time":[{"startTime":"2026-05-22 12:00:00","endTime":"2026-05-22 18:00:00","parameter":{"parameterName":"悶熱"}}]}
+        ]
+      }
+    ]
+  }
+}
+''';
+
 /// MinT 數值非數字字串（單一時段，方便聚焦測試）。
 const String malformedNonNumericMinTJson = '''
 {

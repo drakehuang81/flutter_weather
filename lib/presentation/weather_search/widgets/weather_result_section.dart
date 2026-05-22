@@ -20,20 +20,15 @@ class WeatherResultSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 純 fade（不再 slide）— 多個 GlassCard 的 BackdropFilter 在 cross-fade
+    // 期間會 sample 對方層，疊上 slide 會視覺上 jiggle。改為單純 fade，
+    // 縮短 duration 後體感不會輸 slide 太多但乾淨許多。
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 360),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, animation) {
-        final offset = Tween<Offset>(
-          begin: const Offset(0, 0.04),
-          end: Offset.zero,
-        ).animate(animation);
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(position: offset, child: child),
-        );
-      },
+      duration: const Duration(milliseconds: 260),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, animation) =>
+          FadeTransition(opacity: animation, child: child),
       child: KeyedSubtree(
         key: ValueKey(_keyFor(state)),
         child: _resolve(state),
@@ -43,8 +38,9 @@ class WeatherResultSection extends StatelessWidget {
 
   Object _keyFor(WeatherViewState s) => switch (s) {
         WeatherInitial() => 'initial',
-        WeatherLoading(queryingCity: final c) => 'loading:$c',
-        WeatherLoaded(forecast: final f) => 'loaded:${f.city.value}',
+        WeatherLoading(queryingLabel: final c) => 'loading:$c',
+        WeatherLoaded(forecasts: final fs) =>
+          'loaded:${fs.length}:${fs.isEmpty ? '' : fs.first.city.value}',
         WeatherFailed(lastQuery: final q, title: final t) => 'failed:$t:$q',
       };
 
@@ -52,7 +48,7 @@ class WeatherResultSection extends StatelessWidget {
     return switch (s) {
       WeatherInitial() => const InitialView(),
       WeatherLoading() => const SkeletonView(),
-      WeatherLoaded(forecast: final f) => ForecastView(forecast: f),
+      WeatherLoaded(forecasts: final fs) => ForecastView(forecasts: fs),
       WeatherFailed(title: final t, message: final m) => ErrorView(
           title: t,
           message: m,

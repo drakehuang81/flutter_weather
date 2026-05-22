@@ -1,6 +1,7 @@
 # flutter_weather
 
-A Flutter weather app targeting iOS and Android.
+A Flutter weather app targeting iOS and Android. Searches the Taiwan Central
+Weather Administration (CWA) 36-hour forecast API by city name.
 
 ## Tech Stack
 
@@ -18,6 +19,7 @@ A Flutter weather app targeting iOS and Android.
 - **macOS** with Xcode (for iOS) and Android Studio / Android SDK (for Android)
 - **Homebrew** — used to install FVM
 - A running iOS Simulator or Android Emulator (or a connected device)
+- A **CWA Open Data API token** (free) — see [Configuration](#configuration)
 
 ## Install
 
@@ -56,84 +58,150 @@ fvm flutter pub get
 fvm flutter doctor
 ```
 
-## Run
+## Configuration
 
-Always invoke Flutter through FVM so the pinned version is used:
+The app calls the CWA F-C0032-001 forecast API, which requires a personal token.
+
+### Get a CWA token (one-time, free)
+
+1. Open <https://opendata.cwa.gov.tw/> and click **註冊** to create a free account.
+2. Verify your email and sign in.
+3. From the top menu go to **會員資訊 → API 授權碼**, then click **取得授權碼**.
+4. Copy the token (a 36–40 character string starting with `CWB-` or similar).
+
+### Inject the token into the build
+
+The app reads the token from `String.fromEnvironment('CWA_API_TOKEN')`, so it
+must be provided at **build time** through Dart's compile-time environment.
+Two equivalent ways:
+
+#### Option A — Inline `--dart-define` (one-shot)
+
+Best for quick demos, CI pipelines, or when you don't want to keep a local
+file. Substitute your real token for `<YOUR_TOKEN>`:
 
 ```bash
-fvm flutter run            # auto-detect device
-fvm flutter run -d ios     # iOS simulator
-fvm flutter run -d android # Android emulator
+fvm flutter run --dart-define=CWA_API_TOKEN=<YOUR_TOKEN>
+
+# Or read from a shell variable so the token isn't visible in scrollback:
+export CWA_API_TOKEN=<YOUR_TOKEN>
+fvm flutter run --dart-define=CWA_API_TOKEN=$CWA_API_TOKEN
+```
+
+> ⚠️ Passing the token inline puts it in your shell history. Prefer
+> the shell-variable form on shared machines.
+
+#### Option B — `.env` file (recommended for repeated dev runs)
+
+Flutter 3.7+ can load `KEY=VALUE` files directly. `.env` is git-ignored;
+just create one yourself in the repo root:
+
+```bash
+cat > .env <<'EOF'
+CWA_API_TOKEN=YOUR-CWA-TOKEN-HERE
+EOF
+
+fvm flutter run --dart-define-from-file=.env
+```
+
+Works the same way for any build / test command:
+
+```bash
+fvm flutter test       --dart-define-from-file=.env   # (not required — tests use stubs)
+fvm flutter build apk  --dart-define-from-file=.env   # release build
+fvm flutter build ios  --dart-define-from-file=.env
+```
+
+#### What happens if the token is missing?
+
+On launch the app shows a centred overlay reminding you to set the token
+(every search would otherwise return `伺服器錯誤（401）`). Dismiss it to
+explore the UI, then restart with a `--dart-define` flag once you have the
+token.
+
+## Run
+
+Type a city name (e.g. `臺北市`, `高雄市`) and tap **確認**. Pick whichever
+injection form you set up above:
+
+```bash
+# Option A
+fvm flutter run --dart-define=CWA_API_TOKEN=<YOUR_TOKEN>
+
+# Option B
+fvm flutter run --dart-define-from-file=.env
+
+# Target a specific platform
+fvm flutter run -d ios     --dart-define-from-file=.env
+fvm flutter run -d android --dart-define-from-file=.env
 ```
 
 ## Project Conventions
 
 - All `flutter` / `dart` commands go through `fvm` (e.g. `fvm flutter test`, `fvm dart format .`).
 - `.fvm/` (SDK symlink cache) is git-ignored; `.fvmrc` (version lock) is committed.
+- `.env` and `/scripts/` are git-ignored — never commit secrets.
 - Claude Code artifacts (`CLAUDE.md`, `.claude/`, `.mcp.json`) are git-ignored.
 
 ## Architecture
 
-### Project Layout
+Clean Architecture in four tiers; Domain is the dependency core.
 
 ```
 lib/
-├── core/
-│   ├── infra/
-│   │   └── network/          # HTTP infrastructure (Dio-based)
-│   │       ├── api_request.dart    # Abstract API contract
-│   │       ├── api_exception.dart  # Unified error type
-│   │       ├── http_method.dart    # HTTP verb enum
-│   │       └── http_service.dart   # Executor + interceptors
-│   └── utils/
-│       └── log.dart          # Cross-cutting logger
-└── main.dart
+├── domain/weather_forecast/         # Entities, VOs, Repository interface, Failures
+├── application/
+│   ├── result.dart                  # Sealed Result<T, E>
+│   └── weather_forecast/
+│       └── get_city_forecast.dart   # Use Case: raw input → Result<Forecast, Failure>
+├── infra/
+│   ├── network/                     # ApiRequest / HttpService / DioHttpService / ApiException
+│   └── weather_forecast/            # CWA DTO / Mapper / Request / Repository impl (ACL)
+├── presentation/
+│   ├── theme/                       # AppTheme + GlassCard + weather icon mapper
+│   └── weather_search/              # Notifier + ViewState + 4 state widgets
+├── composition/
+│   └── providers.dart               # Riverpod wiring (Composition Root)
+├── core/utils/log.dart              # Cross-cutting logger
+└── main.dart                        # ProviderScope + MaterialApp
 ```
 
-### Network Layer
+### Dependency rule
 
-The network layer is built around an abstract `ApiRequest<T>` contract — each endpoint
-declares its own `baseUrl`, `path`, `method`, `headers`, `queryParameters`, `body`, and
-`parseResponse` mapping. `HttpService` is the only executor; it owns a `Dio` instance,
-maps `DioException` to a domain `ApiException`, and (in debug builds) installs a log
-interceptor that prints every request / response / error through the `Log` utility.
+Domain is independent of everything. Application depends on Domain only.
+Infrastructure implements Domain interfaces. Presentation depends on
+Application and Domain. The Composition Root (`providers.dart`) is the
+**only** place where concrete implementations are wired into Riverpod
+providers.
 
-**Defining an endpoint**
+### Network layer
 
-```dart
-class GetWeatherRequest extends ApiRequest<WeatherDto> {
-  GetWeatherRequest(this.city);
-  final String city;
+`ApiRequest<T>` is the abstract endpoint contract — each request declares
+its own `baseUrl`, `path`, `method`, `queryParameters`, and `parseResponse`
+mapping. `HttpService` is the abstract executor; `DioHttpService` is the
+Dio implementation. The Repository (ACL) catches `ApiException` and
+`FormatException` and translates them to `DomainFailure`.
 
-  @override
-  String get baseUrl => 'https://api.example.com';
-  @override
-  String get path => '/v1/weather';
-  @override
-  HttpMethod get method => HttpMethod.get;
-  @override
-  Map<String, dynamic>? get queryParameters => {'city': city};
+### Weather search flow
 
-  @override
-  WeatherDto parseResponse(dynamic response) =>
-      WeatherDto.fromJson(response as Map<String, dynamic>);
-}
+```
+WeatherSearchPage (Riverpod ConsumerWidget)
+ └─ ref.watch(weatherSearchNotifierProvider)
+     └─ WeatherSearchNotifier.search(input)
+         └─ ref.read(getCityForecastProvider).call(input)
+             └─ Repository.fetchByCity(CityName)
+                 └─ HttpService.execute(GetCwaForecastRequest)
+                     └─ CWA F-C0032-001
 ```
 
-**Calling it**
+State machine (sealed `WeatherViewState`):
 
-```dart
-final http = HttpService();
-try {
-  final weather = await http.execute(GetWeatherRequest('Taipei'));
-} on ApiException catch (e) {
-  if (e.isUnauthorized) { /* refresh token */ }
-  else if (e.isNetworkError) { /* offline UI */ }
-  else { Log.e('weather request failed', e, e.stackTrace); }
-}
-```
+- `WeatherInitial`  → InitialView (prompt to search)
+- `WeatherLoading` → SkeletonView (per-search shimmer)
+- `WeatherLoaded`  → ForecastView (hero card + period cards)
+- `WeatherFailed`  → ErrorView (retry replays `lastQuery`)
 
-**Logging**
+### Logging
 
 ```dart
 Log.d('debug detail');
@@ -144,6 +212,16 @@ Log.e('error', error, stackTrace);
 
 Verbosity is `trace` in debug builds and `warning` in release; no extra config needed.
 
+## Tests
+
+```bash
+fvm flutter test
+```
+
+50 tests cover domain VO/aggregate invariants, DTO/Mapper, Repository ACL
+translation, and Use Case Failure routing. All tests use in-process fakes
+(`_StubHttpService`, `_StubRepo`) — no real network calls.
+
 ## IDE Setup
 
 Point your IDE at the FVM-managed SDK so analyzer and run configs use the pinned version:
@@ -153,3 +231,10 @@ Point your IDE at the FVM-managed SDK so analyzer and run configs use the pinned
   { "dart.flutterSdkPath": ".fvm/flutter_sdk" }
   ```
 - **Android Studio / IntelliJ** — Settings → Languages & Frameworks → Flutter → Flutter SDK path: `.fvm/flutter_sdk`
+
+## AI Disclosure
+
+This codebase was developed with assistance from **Claude Code (Anthropic)** —
+scaffolding, network layer, use cases, state holder, glass UI, and
+documentation drafts. All output is human-reviewed, edited, and tested
+before commit.

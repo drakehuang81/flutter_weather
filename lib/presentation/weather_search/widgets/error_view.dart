@@ -25,9 +25,12 @@ class ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+    // SingleChildScrollView 防止鍵盤未收起時內容 overflow（spec 雖未要求，
+    // 但 LocationInputBar 觸發 error 的當下鍵盤常還在），與 InitialView
+    // 的策略一致。
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      child: Center(
         child: GlassCard(
           padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
           child: Column(
