@@ -10,6 +10,7 @@ A Flutter weather app targeting iOS and Android.
 | Dart              | `3.11.4`   | Bundled with the Flutter SDK above     |
 | flutter_riverpod  | `^3.3.1`   | State management (hand-written providers) |
 | dio               | `^5.9.2`   | HTTP client for weather API calls      |
+| logger            | latest     | Pretty-printed logs (debug verbose, release warning+) |
 | Target platforms  | iOS, Android | Mobile only                          |
 
 ## Prerequisites
@@ -70,6 +71,78 @@ fvm flutter run -d android # Android emulator
 - All `flutter` / `dart` commands go through `fvm` (e.g. `fvm flutter test`, `fvm dart format .`).
 - `.fvm/` (SDK symlink cache) is git-ignored; `.fvmrc` (version lock) is committed.
 - Claude Code artifacts (`CLAUDE.md`, `.claude/`, `.mcp.json`) are git-ignored.
+
+## Architecture
+
+### Project Layout
+
+```
+lib/
+├── core/
+│   ├── infra/
+│   │   └── network/          # HTTP infrastructure (Dio-based)
+│   │       ├── api_request.dart    # Abstract API contract
+│   │       ├── api_exception.dart  # Unified error type
+│   │       ├── http_method.dart    # HTTP verb enum
+│   │       └── http_service.dart   # Executor + interceptors
+│   └── utils/
+│       └── log.dart          # Cross-cutting logger
+└── main.dart
+```
+
+### Network Layer
+
+The network layer is built around an abstract `ApiRequest<T>` contract — each endpoint
+declares its own `baseUrl`, `path`, `method`, `headers`, `queryParameters`, `body`, and
+`parseResponse` mapping. `HttpService` is the only executor; it owns a `Dio` instance,
+maps `DioException` to a domain `ApiException`, and (in debug builds) installs a log
+interceptor that prints every request / response / error through the `Log` utility.
+
+**Defining an endpoint**
+
+```dart
+class GetWeatherRequest extends ApiRequest<WeatherDto> {
+  GetWeatherRequest(this.city);
+  final String city;
+
+  @override
+  String get baseUrl => 'https://api.example.com';
+  @override
+  String get path => '/v1/weather';
+  @override
+  HttpMethod get method => HttpMethod.get;
+  @override
+  Map<String, dynamic>? get queryParameters => {'city': city};
+
+  @override
+  WeatherDto parseResponse(dynamic response) =>
+      WeatherDto.fromJson(response as Map<String, dynamic>);
+}
+```
+
+**Calling it**
+
+```dart
+final http = HttpService();
+try {
+  final weather = await http.execute(GetWeatherRequest('Taipei'));
+} on ApiException catch (e) {
+  if (e.isUnauthorized) { /* refresh token */ }
+  else if (e.isNetworkError) { /* offline UI */ }
+  else { Log.e('weather request failed', e, e.stackTrace); }
+}
+```
+
+**Logging**
+
+```dart
+Log.d('debug detail');
+Log.i('informational message');
+Log.w('warning');
+Log.e('error', error, stackTrace);
+```
+
+Verbosity is `trace` in debug builds and `warning` in release; no extra config needed.
 
 ## IDE Setup
 
