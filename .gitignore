@@ -53,3 +53,8 @@ CLAUDE.md
 
 # FVM Version Cache
 .fvm/
+
+# Local secrets / probes（never commit）
+.env
+.cwa_token
+/scripts/
